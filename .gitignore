@@ -1,0 +1,55 @@
+# .gitignore
+
+# Arquivos Byte-compiled / otimizados
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Arquivos de ambiente virtual
+venv/
+ENV/
+
+# Arquivos de configuração
+.env
+
+# Arquivos do Pytest
+.cache/
+.pytest_cache/
+
+# Arquivos do Jupyter Notebook
+.ipynb_checkpoints
+
+# Logs
+logs/
+*.log
+
+# Arquivos temporários
+*.tmp
+temp/
+
+# Arquivos gerados pelo Django
+*.pot
+*.po
+*.mo
+/local_settings.py
+/db.sqlite3
+/media/
+
+# Arquivos de imagem e video
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.jfif
+*.webp
+*.svg
+*mp4
+
+# Arquivos de áudio
+*.wav
+
+# Pasta do modelo
+iVision/Model/new_model/
