@@ -52,4 +52,4 @@ temp/
 *.wav
 
 # Pasta do modelo
-iVision/Model/new_model/
+iVision/Model/Model/

@@ -10,6 +10,7 @@ from twilio.rest import Client
 from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
 from dotenv import load_dotenv
+
 #━━━━━━━━━━━━━━❮◆❯━━━━━━━━━━━━━━
 
 app = Flask(__name__)
@@ -35,6 +36,7 @@ def detect_accident(video_path, CNN_Model, client):
     frame_window = []
     frame_skip = 2  # Processar cada segundo quadro
     current_frame = 0
+    max_prob = 0  # Armazenar a probabilidade máxima de acidente
 
     try:
         while True:
@@ -45,19 +47,20 @@ def detect_accident(video_path, CNN_Model, client):
             if ret == True:
                 frame_ready = prepared_frame_v2(frame, base_model)
                 prediction = CNN_Model.predict(frame_ready)
+                max_prob = max(max_prob, prediction[0][0])  # Atualizar a probabilidade máxima
                 frame_window.append(prediction[0][0])
-                if len(frame_window) > 15:  # Aumentando o tamanho da janela para 15
+                if len(frame_window) > 15:
                     frame_window.pop(0)
                 
                 avg_prediction = np.mean(frame_window)
 
-                if avg_prediction > 0.7:  # 35% de probabilidade
+                if avg_prediction > 0.02:  # Limiar de 2%
                     accident_flag = True
 
                 if accident_flag:
-                    predict = f"Probabilidade de acidente: {100 * avg_prediction:.2f}%"
+                    predict = f"Probabilidade de acidente: {100 * max_prob:.2f}%"
                 else:
-                    predict = "Sem acidente"
+                    predict = f"Sem acidente (Probabilidade: {100 * (1 - avg_prediction):.2f}%)"
 
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(frame, predict, (50, 50), font, 1, (0, 255, 255), 3, cv2.LINE_4)
@@ -77,7 +80,7 @@ def detect_accident(video_path, CNN_Model, client):
         except PermissionError:
             print("Não foi possível excluir o arquivo. Ele pode estar sendo usado por outro processo.")
     
-    return avg_prediction, accident_flag
+    return max_prob, accident_flag
 
 #━━━━━━❮ROTA TESTE❯━━━━━━━
 @app.route('/hello', methods=['GET'])
@@ -95,11 +98,11 @@ def upload():
     video = request.files['video']
     temp_video_file = NamedTemporaryFile(delete=False)
     video.save(temp_video_file.name)
-    prob, accident_flag = detect_accident(video_path=temp_video_file.name, CNN_Model=CNN_Model, client=client)
+    max_prob, accident_flag = detect_accident(video_path=temp_video_file.name, CNN_Model=CNN_Model, client=client)
     if accident_flag:
-        return jsonify({'status': 'danger', 'message': 'Acidente detectado!', 'pred': float(prob)})
+        return jsonify({'status': 'danger', 'message': f"Acidente detectado com probabilidade máxima de {100 * max_prob:.2f}%!", 'pred': float(max_prob)})
     else:
-        return jsonify({'status': 'safe', 'message': 'Sem acidentes detectados.', 'pred': 0.0})
+        return jsonify({'status': 'safe', 'message': f"Sem acidentes detectados. Probabilidade máxima de segurança: {100 * (1 - max_prob):.2f}%", 'pred': 1 - float(max_prob)})
 
 if __name__ == '__main__':
     app.run(debug=True)
