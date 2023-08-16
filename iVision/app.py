@@ -10,7 +10,6 @@ from twilio.rest import Client
 from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
 from dotenv import load_dotenv
-
 #━━━━━━━━━━━━━━❮◆❯━━━━━━━━━━━━━━
 
 app = Flask(__name__)
