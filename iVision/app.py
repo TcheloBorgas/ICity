@@ -49,6 +49,8 @@ def predict_accident(frame):
     prediction = CNN_Model.predict(frame_ready)
     return prediction
 
+
+
 # Funções para streaming de vídeo em tempo real
 camera = cv2.VideoCapture(0)  # Usar 0 para a webcam padrão
                               # Usar 1,2,3... para câmera externa
