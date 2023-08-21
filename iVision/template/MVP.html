@@ -38,7 +38,7 @@
     input[type="file"] {
       margin-bottom: 20px;
     }
-    button[type="submit"], button.open-map {
+    button[type="submit"], button.open-map, a.open-map {
       background-color: #7300ff;
       color: #fff;
       padding: 10px 20px;
@@ -50,7 +50,7 @@
       display: inline-block;
       margin-top: 10px;
     }
-    button[type="submit"]:hover, button.open-map:hover {
+    button[type="submit"]:hover, button.open-map:hover, a.open-map:hover {
       background-color: #fff;
       color: #2b134b;
       transition: all 0.3s ease;
@@ -97,11 +97,11 @@
     <input type="file" name="video" id="video" accept="video/*" required>
     <button type="submit">Enviar</button>
     <button class="open-map" onclick="openPopup()">Abrir mapa</button>
+    <a href="http://127.0.0.1:5000/video_feed" class="open-map">Detecção em Tempo Real</a>
     <p id="confirmation-message"></p>
   </form>
 
   <div id="popup" class="popup">
-    <div class="popup-content">
     <div class="popup-content">
       <button onclick="closePopup()" style="float: right;">X</button>
       <div id="map"></div>
@@ -168,11 +168,7 @@
     function closePopup() {
       document.getElementById("popup").style.display = "none";
     }
-</script>
-  
-<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnDwZkREPcjwi2ewzfROwRpetAzW6trrM">
-</script>
-
+  </script>
   
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnDwZkREPcjwi2ewzfROwRpetAzW6trrM">
   </script>

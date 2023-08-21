@@ -1,33 +1,72 @@
-#━━━━━━━━━❮Bibliotecas❯━━━━━━━━━
-import os
+# Importações
+from flask import Flask, Response, request, jsonify, send_from_directory
 import cv2
 import numpy as np
-import tensorflow.keras.backend as K
-import time
-from flask import Flask, request, jsonify, send_from_directory
-from tensorflow.keras.models import load_model
+from keras.applications.vgg16 import preprocess_input, VGG16
+from keras.models import load_model
 from twilio.rest import Client
 from tempfile import NamedTemporaryFile
-from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
 from dotenv import load_dotenv
-#━━━━━━━━━━━━━━❮◆❯━━━━━━━━━━━━━━
+import tensorflow.keras.backend as K
+import time
+import os
 
 app = Flask(__name__)
+
+# Carregar variáveis de ambiente
 load_dotenv(r'Code\amb_var.env')
 
-CNN_Model = load_model(r'iVision\Model\Model')
+# Carregar o modelo VGG16
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+# Carregar o modelo treinado
+CNN_Model = load_model('iVision\Model\Model')
+
+# Configurações do Twilio
 account_sid = 'TACa583032405cbf44ef280fccae8db749e'
 auth_token = 'a9b7afb38f6602c49252deba3cee4d5a'
 client = Client(account_sid, auth_token)
-base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
 
-#━━━━━━❮Funções Principais❯━━━━━━━
+# Funções de preparação e previsão para a detecção de acidentes em tempo real
+def prepared_frame(frame):
+    frame = cv2.resize(frame, (224, 224))
+    frame = np.expand_dims(frame, axis=0)
+    frame = preprocess_input(frame)
+    features = base_model.predict(frame)
+    return features.flatten().reshape(1, -1)
+
+
 def prepared_frame_v2(frame, base_model):
     frame = cv2.resize(frame, (224, 224))
     frame = np.expand_dims(frame, axis=0)
     frame = preprocess_input(frame)
     features = base_model.predict(frame)
     return features.flatten().reshape(1, -1)
+
+
+def predict_accident(frame):
+    frame_ready = prepared_frame(frame)
+    prediction = CNN_Model.predict(frame_ready)
+    return prediction
+
+# Funções para streaming de vídeo em tempo real
+camera = cv2.VideoCapture(0)  # Usar 0 para a webcam padrão
+                              # Usar 1 para câmera externa
+def gen_frames():
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
+        else:
+            prediction = predict_accident(frame)
+            label = "Acidente" if prediction[0][0] > 0.02 else "Sem Acidente"
+            frame = cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+
 
 def detect_accident(video_path, CNN_Model, client):
     cap = cv2.VideoCapture(video_path)
@@ -81,17 +120,21 @@ def detect_accident(video_path, CNN_Model, client):
     
     return max_prob, accident_flag
 
-#━━━━━━❮ROTA TESTE❯━━━━━━━
+
+# Rotas
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
 @app.route('/hello', methods=['GET'])
 def HelloWorld():
     return 'Hello World'
 
-#━━━━━━❮ROTA Render❯━━━━━━━
 @app.route('/', methods=['GET', 'POST'])
 def home():
     return send_from_directory('template', 'MVP.html')
 
-#━━━━━━❮ROTA Upload❯━━━━━━━
 @app.route('/api/upload', methods=['POST'])
 def upload():
     video = request.files['video']
