@@ -51,7 +51,7 @@ def predict_accident(frame):
 
 # Funções para streaming de vídeo em tempo real
 camera = cv2.VideoCapture(0)  # Usar 0 para a webcam padrão
-                              # Usar 1 para câmera externa
+                              # Usar 1,2,3... para câmera externa
 def gen_frames():
     while True:
         success, frame = camera.read()
