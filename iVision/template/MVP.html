@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Upload de Vídeo</title>
-
-  <!-- CSS INLINE -->
   <style>
     body {
       font-family: Arial, Helvetica, sans-serif;
@@ -60,7 +59,6 @@
       text-align: center;
       font-size: 1.2rem;
     }
-
     #map {
       height: 100%;
       width: 100%;
@@ -76,7 +74,6 @@
       background-color: rgba(0, 0, 0, 0.4);
       display: none;
     }
-
     .popup-content {
       position: relative;
       margin: 5% auto;
@@ -86,33 +83,77 @@
       max-width: 800px;
       height: 80%;
     }
-  </style>
+  
+body, h1, label {
+    font-family: 'Times New Roman', serif;
+    font-size: 1.2em; /* Increasing the font size */
+}
+
+button[type="submit"], button.open-map, a.open-map {
+    font-size: 1.2em; /* Increasing the button font size */
+    padding: 12px 20px; /* Increasing the button size */
+}
+
+/* Keeping the neon animation and effects as before */
+
+
+button[type="submit"], button.open-map, a.open-map {
+    margin: 10px; /* Added margin to space out the buttons */
+}
+
+
+
+body, h1, label {
+    font-family: 'Calibri', sans-serif;
+}
+
+@keyframes rainbowNeon {
+    0%   { box-shadow: 0 0 5px #FF0000, 0 0 10px #FF0000; }
+    20%  { box-shadow: 0 0 5px #FF7F00, 0 0 10px #FF7F00; }
+    40%  { box-shadow: 0 0 5px #FFFF00, 0 0 10px #FFFF00; }
+    60%  { box-shadow: 0 0 5px #7FFF00, 0 0 10px #7FFF00; }
+    80%  { box-shadow: 0 0 5px #00FF00, 0 0 10px #00FF00; }
+    100% { box-shadow: 0 0 5px #0000FF, 0 0 10px #0000FF; }
+}
+
+button[type="submit"], button.open-map, a.open-map {
+    animation: rainbowNeon 2s infinite alternate;
+    border: 2px solid transparent;
+}
+
+button[type="submit"]:hover, button.open-map:hover, a.open-map:hover {
+    box-shadow: 0 0 5px #FF69B4, 2px 0 10px #FF69B4;
+    border-color: #FF69B4;
+}
+
+
+
+h1 {
+    font-size: 2.5em; /* Increasing the title font size */
+    color: black;     /* Changing the title color to black */
+}
+
+</style>
 </head>
 <body>
   <h1>Upload de Vídeo</h1>
-  
-  <!-- FORMULÁRIO DE UPLOAD -->
   <form id="video-form">
     <label for="video">Selecione um vídeo:</label>
     <input type="file" name="video" id="video" accept="video/*" required>
-    <button type="submit">Enviar</button>
+    <div style="display: flex; justify-content: center; align-items: center;"><button type="submit">Enviar</button>
     <button class="open-map" onclick="openPopup()">Abrir mapa</button>
-    <a href="http://127.0.0.1:5000/video_feed" class="open-map">Detecção em Tempo Real</a>
+    <a href="#" onclick="openVideoFeed()" class="open-map">Detecção em Tempo Real</a></div>
     <p id="confirmation-message"></p>
   </form>
-
   <div id="popup" class="popup">
     <div class="popup-content">
       <button onclick="closePopup()" style="float: right;">X</button>
       <div id="map"></div>
     </div>
   </div>
-
-  <!-- JAVASCRIPT INLINE -->
   <script>
     const form = document.querySelector('#video-form');
     const confirmationMessage = document.querySelector('#confirmation-message');
-  
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const formData = new FormData(form);
@@ -136,24 +177,39 @@
         console.error(error);
       });
     });
-  
     let mapInitialized = false;
     let map;
-  
+    let videoFeedWindow = null;
+    function openVideoFeed() {
+        videoFeedWindow = window.open('http://127.0.0.1:5000/video_feed', '_blank');
+        const checkVideoFeedWindow = setInterval(function() {
+            if(videoFeedWindow.closed) {
+                clearInterval(checkVideoFeedWindow);
+                fetch('/get_max_prob')
+                .then(response => response.json())
+                .then(data => {
+                    const maxProb = data.max_prob;
+                    if (maxProb > 0.02) {
+                        confirmationMessage.innerText = `Acidente detectado com probabilidade de ${(maxProb * 100).toFixed(2)}%`;
+                    } else {
+                        confirmationMessage.innerText = `Sem acidentes detectados. Probabilidade de segurança: ${(100 * (1 - maxProb)).toFixed(2)}%`;
+                    }
+                });
+            }
+        }, 500);
+    }
     function initMap() {
       if (!mapInitialized) {
         const mapOptions = {
-          center: { lat: -23.550520, lng: -46.633308 }, // Coordenadas de São Paulo, por exemplo
+          center: { lat: -23.550520, lng: -46.633308 },
           zoom: 8,
-          mapTypeId: "satellite", // Define o tipo de mapa como imagens de satélite
-          tilt: 45, // Define a inclinação do mapa em graus (0-45)
+          mapTypeId: "satellite",
+          tilt: 45,
         };
-  
         map = new google.maps.Map(document.getElementById("map"), mapOptions);
         mapInitialized = true;
       }
     }
-  
     function openPopup() {
       document.getElementById("popup").style.display = "block";
       setTimeout(() => {
@@ -164,12 +220,10 @@
         map.setCenter({ lat: -23.550520, lng: -46.633308 });
       }, 100);
     }
-  
     function closePopup() {
       document.getElementById("popup").style.display = "none";
     }
   </script>
-  
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnDwZkREPcjwi2ewzfROwRpetAzW6trrM">
   </script>
 </body>

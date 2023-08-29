@@ -8,8 +8,8 @@ from twilio.rest import Client
 from tempfile import NamedTemporaryFile
 from dotenv import load_dotenv
 import tensorflow.keras.backend as K
-import time
 import os
+import threading
 
 app = Flask(__name__)
 
@@ -48,18 +48,41 @@ def predict_accident(frame):
     return prediction
 
 # Funções para streaming de vídeo em tempo real
-camera = cv2.VideoCapture(0)  # Usar 0 para a webcam padrão
-                              # Usar 1,2,3... para câmera externa
-def gen_frames():
+camera = cv2.VideoCapture(0)
+global_frame = None
+
+def capture_frames():
+    global global_frame, camera
     while True:
         success, frame = camera.read()
         if not success:
             break
         else:
-            prediction = predict_accident(frame)
+            global_frame = frame
+
+def process_frames():
+    global global_frame
+    while True:
+        if global_frame is not None:
+            prediction = predict_accident(global_frame)
             label = "Acidente" if prediction[0][0] > 0.02 else "Sem Acidente"
-            frame = cv2.putText(frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            ret, buffer = cv2.imencode('.jpg', frame)
+            global_frame = cv2.putText(global_frame, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+@app.route('/video_feed')
+def video_feed():
+    thread1 = threading.Thread(target=capture_frames)
+    thread2 = threading.Thread(target=process_frames)
+    
+    thread1.start()
+    thread2.start()
+    
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def gen_frames():
+    global global_frame
+    while True:
+        if global_frame is not None:
+            _, buffer = cv2.imencode('.jpg', global_frame)
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
@@ -117,10 +140,6 @@ def detect_accident(video_path, CNN_Model, client):
     return max_prob, accident_flag
 
 # Rotas
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
 @app.route('/hello', methods=['GET'])
 def HelloWorld():
     return 'Hello World'
