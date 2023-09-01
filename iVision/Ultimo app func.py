@@ -7,7 +7,6 @@ from tempfile import NamedTemporaryFile
 import os
 import base64
 
-
 app = Flask(__name__)
 
 # Carregar o modelo VGG16
@@ -15,13 +14,6 @@ base_model = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224,
 
 # Carregar o modelo treinado
 CNN_Model = load_model(r'C:\Users\pytho\Documents\GitHub\Icity\iVision\Model\Model')
-
-# Variável global para armazenar o estado do acidente
-accident_status = {
-    'accident_detected': False,
-    'max_prob': 0,
-    'frame': None,
-}
 
 # Funções de preparação e previsão para a detecção de acidentes em tempo real
 def prepared_frame(frame):
@@ -40,7 +32,6 @@ def predict_accident(frame):
 camera = cv2.VideoCapture(0)
 
 def detect_accident(video_path, CNN_Model):
-    global accident_status
     cap = cv2.VideoCapture(video_path)
     accident_flag = False
     frame_window = []
@@ -80,38 +71,29 @@ def detect_accident(video_path, CNN_Model):
         cap.release()
         cv2.destroyAllWindows()
 
-    accident_status['accident_detected'] = accident_flag
-    accident_status['max_prob'] = float(max_prob)
-    _, buffer = cv2.imencode('.jpg', accident_frame)
-    accident_status['frame'] = base64.b64encode(buffer).decode('utf-8')
+    return max_prob, accident_flag, accident_frame
 
-    return float(max_prob), accident_flag, accident_frame
+
+
+
+
 
 
 def gen_frames(camera):  
-    global accident_status
     while True:
         success, frame = camera.read()
-        if not success or frame is None:
-            print("Failed to grab frame")
+        if not success:
             break
-        prediction = predict_accident(frame)
-        max_prob = prediction[0][0] 
-        text = f'Probabilidade de Acidente: {max_prob*100:.2f}%'
-        color = (0, 0, 255) if max_prob > 0.5 else (0, 255, 0)
-        cv2.putText(frame, text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-        
-        if max_prob > 0.5:
-            accident_status['accident_detected'] = True
-            accident_status['max_prob'] = float(max_prob)
-            _, buffer = cv2.imencode('.jpg', frame)
-            accident_status['frame'] = base64.b64encode(buffer).decode('utf-8')
-        
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        else:
+            prediction = predict_accident(frame)
+            max_prob = prediction[0][0]
+            text = f'Probabilidade de Acidente: {max_prob*100:.2f}%'
+            color = (0, 0, 255) if max_prob > 0.5 else (0, 255, 0)
+            cv2.putText(frame, text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
 @app.route('/hello', methods=['GET'])
@@ -122,13 +104,14 @@ def HelloWorld():
 def home():
     return send_from_directory('template', 'MVP.html')
 
+
+
 @app.route('/video_feed')
 def video_feed():
     return Response(gen_frames(camera), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
-    global accident_status
     video = request.files['video']
     temp_video_file = NamedTemporaryFile(delete=False)
     video.save(temp_video_file.name)
@@ -136,17 +119,9 @@ def upload():
     _, buffer = cv2.imencode('.jpg', accident_frame)
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     if accident_flag:
-        accident_status['accident_detected'] = True
-        accident_status['max_prob'] = float(max_prob)
-        accident_status['frame'] = jpg_as_text
         return jsonify({'status': 'danger', 'message': f"Acidente detectado com probabilidade de {100 * max_prob:.2f}%!", 'pred': float(max_prob), 'frame': jpg_as_text})
     else:
         return jsonify({'status': 'safe', 'message': f"Sem acidentes detectados. Probabilidade de segurança: {100 * (1 - max_prob):.2f}%", 'pred': 1 - float(max_prob), 'frame': jpg_as_text})
-
-@app.route('/accident_status')
-def get_accident_status():
-    global accident_status
-    return jsonify(accident_status)
 
 
 if __name__ == '__main__':

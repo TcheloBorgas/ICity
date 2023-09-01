@@ -5,29 +5,30 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Upload de Vídeo</title>
+  <title>ICity</title>
   <style>
     body {
       font-family: Arial, Helvetica, sans-serif;
-      background-image: linear-gradient(45deg, #7300ff, #51E8F4);
+      background-image: linear-gradient(90deg, #51E8F4, #7300ff, #51E8F4, #7300ff);
       color: #fff;
     }
     h1 {
       color: #2b134b;
       text-align: center;
-      margin-top: 50px;
+      margin-top: 70px;
     }
     form {
-      width: 50%;
+      width: 60%;
       margin: 50px auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-      background-color: #2b134b;;
-      border-radius: 5px;
+      padding: 50px;
+      background-color: rgba(43, 19, 75, 0.6); /* fundo mais transparente */
+      border-radius: 45px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px); /* efeito de desfoque máximo */
     }
     label {
       display: block;
@@ -84,59 +85,78 @@
       height: 80%;
     }
   
-body, h1, label {
-    font-family: 'Times New Roman', serif;
-    font-size: 1.2em; /* Increasing the font size */
-}
+    body, h1, label {
+      font-family: 'Times New Roman', serif;
+      font-size: 1.2em;
+    }
+  
+    button[type="submit"], button.open-map, a.open-map {
+      font-size: 1.2em;
+      padding: 12px 20px;
+    }
+  
+    button[type="submit"], button.open-map, a.open-map {
+      margin: 10px;
+    }
+  
+    body, h1, label {
+      font-family: 'Calibri', sans-serif;
+    }
+  
+    @keyframes rainbowNeon {
+      0%   { box-shadow: 0 0 5px #FF0000, 0 0 10px #FF0000; }
+      20%  { box-shadow: 0 0 5px #FF7F00, 0 0 10px #FF7F00; }
+      40%  { box-shadow: 0 0 5px #FFFF00, 0 0 10px #FFFF00; }
+      60%  { box-shadow: 0 0 5px #7FFF00, 0 0 10px #7FFF00; }
+      80%  { box-shadow: 0 0 5px #00FF00, 0 0 10px #00FF00; }
+      100% { box-shadow: 0 0 5px #0000FF, 0 0 10px #0000FF; }
+    }
+  
+    button[type="submit"], button.open-map, a.open-map {
+      animation: rainbowNeon 2s infinite alternate;
+      border: 2px solid transparent;
+    }
+  
+    button[type="submit"]:hover, button.open-map:hover, a.open-map:hover {
+      box-shadow: 0 0 5px #FF69B4, 2px 0 10px #FF69B4;
+      border-color: #FF69B4;
+    }
+  
+    h1 {
+      font-size: 2.5em;
+      color: black;
+    }
+  
+  </style>
+  
+  
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
-button[type="submit"], button.open-map, a.open-map {
-    font-size: 1.2em; /* Increasing the button font size */
-    padding: 12px 20px; /* Increasing the button size */
-}
-
-/* Keeping the neon animation and effects as before */
-
-
-button[type="submit"], button.open-map, a.open-map {
-    margin: 10px; /* Added margin to space out the buttons */
-}
-
-
-
-body, h1, label {
-    font-family: 'Calibri', sans-serif;
-}
-
-@keyframes rainbowNeon {
-    0%   { box-shadow: 0 0 5px #FF0000, 0 0 10px #FF0000; }
-    20%  { box-shadow: 0 0 5px #FF7F00, 0 0 10px #FF7F00; }
-    40%  { box-shadow: 0 0 5px #FFFF00, 0 0 10px #FFFF00; }
-    60%  { box-shadow: 0 0 5px #7FFF00, 0 0 10px #7FFF00; }
-    80%  { box-shadow: 0 0 5px #00FF00, 0 0 10px #00FF00; }
-    100% { box-shadow: 0 0 5px #0000FF, 0 0 10px #0000FF; }
-}
-
-button[type="submit"], button.open-map, a.open-map {
-    animation: rainbowNeon 2s infinite alternate;
-    border: 2px solid transparent;
-}
-
-button[type="submit"]:hover, button.open-map:hover, a.open-map:hover {
-    box-shadow: 0 0 5px #FF69B4, 2px 0 10px #FF69B4;
-    border-color: #FF69B4;
-}
-
-
-
-h1 {
-    font-size: 2.5em; /* Increasing the title font size */
-    color: black;     /* Changing the title color to black */
-}
-
-</style>
+<script>
+  async function openVideoFeed() {
+      videoFeedWindow = window.open('http://127.0.0.1:5000/video_feed', '_blank');
+      const res = await fetch('http://127.0.0.1:5000/video_feed');
+      const reader = res.body.getReader();
+      while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+              break;
+          }
+          const text = new TextDecoder().decode(value);
+          if (text.includes('Accident detected!')) {
+              alert('Accident detected!');
+              videoFeedWindow.close();
+              window.location.reload();
+              break;
+          }
+      }
+  }
+  </script>
+<img id="live-video" src="" alt="Live Video Feed">
+  
 </head>
 <body>
-  <h1>Upload de Vídeo</h1>
+  <h1>Detecção de Acidentes ICity</h1>
   <form id="video-form">
     <label for="video">Selecione um vídeo:</label>
     <input type="file" name="video" id="video" accept="video/*" required>
@@ -180,24 +200,6 @@ h1 {
     let mapInitialized = false;
     let map;
     let videoFeedWindow = null;
-    function openVideoFeed() {
-        videoFeedWindow = window.open('http://127.0.0.1:5000/video_feed', '_blank');
-        const checkVideoFeedWindow = setInterval(function() {
-            if(videoFeedWindow.closed) {
-                clearInterval(checkVideoFeedWindow);
-                fetch('/get_max_prob')
-                .then(response => response.json())
-                .then(data => {
-                    const maxProb = data.max_prob;
-                    if (maxProb > 0.02) {
-                        confirmationMessage.innerText = `Acidente detectado com probabilidade de ${(maxProb * 100).toFixed(2)}%`;
-                    } else {
-                        confirmationMessage.innerText = `Sem acidentes detectados. Probabilidade de segurança: ${(100 * (1 - maxProb)).toFixed(2)}%`;
-                    }
-                });
-            }
-        }, 500);
-    }
     function initMap() {
       if (!mapInitialized) {
         const mapOptions = {
@@ -223,8 +225,37 @@ h1 {
     function closePopup() {
       document.getElementById("popup").style.display = "none";
     }
+    var source = new EventSource("/video_feed");
+  source.onmessage = function(event) {
+      if (event.data === "Accidente detectado!") {
+          alert("Accidente detectado!");
+          source.close();
+          window.location.href = "/";
+      } else {
+          document.getElementById("live-video").src = "data:image/jpeg;base64," + event.data;
+      }
+  };
+  
   </script>
+
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnDwZkREPcjwi2ewzfROwRpetAzW6trrM">
   </script>
+  <script>
+    function checkAccidentStatus() {
+        fetch('/accident_status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.accident_detected) {
+                    // Redirecionar para a tela inicial e mostrar o frame do acidente
+                    window.location.href = '/';
+                    // TODO: mostrar o frame do acidente e a probabilidade
+                }
+            });
+    }
+
+    // Verificar o estado do acidente a cada 5 segundos
+    setInterval(checkAccidentStatus, 5000);
+</script>
+
 </body>
 </html>
