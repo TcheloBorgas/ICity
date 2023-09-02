@@ -105,7 +105,6 @@ def home():
     return send_from_directory('template', 'MVP.html')
 
 
-
 @app.route('/video_feed')
 def video_feed():
     return Response(gen_frames(camera), mimetype='multipart/x-mixed-replace; boundary=frame')

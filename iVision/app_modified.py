@@ -9,7 +9,6 @@ from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
 from dotenv import load_dotenv
 import threading
-import atexit
 
 app = Flask(__name__)
 load_dotenv('amb_var.env')
@@ -39,6 +38,7 @@ class Camera:
                     self.accident_flag = max_prob > 0.5
 
 camera = Camera()
+
 
 def prepared_frame(frame):
     frame = cv2.resize(frame, (224, 224))
@@ -70,6 +70,14 @@ def gen_frames(camera):
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
+
+def prepared_frame_v2(frame, base_model):
+    frame = cv2.resize(frame, (224, 224))
+    frame = np.expand_dims(frame, axis=0)
+    frame = preprocess_input(frame)
+    features = base_model.predict(frame)
+    return features.flatten().reshape(1, -1)
+
 def detect_accident(video_path, CNN_Model):
     cap = cv2.VideoCapture(video_path)
     accident_flag = False
@@ -85,7 +93,7 @@ def detect_accident(video_path, CNN_Model):
             if current_frame % frame_skip != 0:
                 continue
             if ret == True:
-                frame_ready = prepared_frame(frame)
+                frame_ready = prepared_frame_v2(frame, base_model)
                 prediction = CNN_Model.predict(frame_ready)
                 frame_window.append(prediction[0][0])
                 if len(frame_window) > 15:  # Aumentando o tamanho da janela para 15
@@ -94,7 +102,7 @@ def detect_accident(video_path, CNN_Model):
                 max_prediction = max(max_prediction, prediction[0][0])
                 avg_prediction = np.mean(frame_window)
 
-                if avg_prediction > 0.01:  # Ajustado para 50% de probabilidade
+                if avg_prediction > 0.01:  # 35% de probabilidade
                     accident_flag = True
 
                 if accident_flag:
@@ -126,6 +134,8 @@ def detect_accident(video_path, CNN_Model):
 def video_feed():
     camera_thread = threading.Thread(target=camera.run)
     camera_thread.start()
+    
+
     return Response(gen_frames(camera), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/api/upload', methods=['POST'])
@@ -146,11 +156,6 @@ def HelloWorld():
 @app.route('/', methods=['GET', 'POST'])
 def home():
     return send_from_directory('template', 'MVP.html')
-
-def close_camera():
-    camera.camera.release()
-
-atexit.register(close_camera)
 
 if __name__ == '__main__':
     app.run(debug=True)
