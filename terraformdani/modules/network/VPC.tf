@@ -125,8 +125,3 @@ resource "aws_security_group" "vpc_sg_priv" {
         cidr_blocks = ["${var.vpc_cidr}"]
     }
 }
-
-resource "aws_api_gateway_rest_api" "api_gateway" {
-  name        = var.api_gateway_name
-  description = var.api_gateway_description
-}
