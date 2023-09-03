@@ -53,3 +53,4 @@ temp/
 
 # Pasta do modelo
 iVision/Model/Model/
+iVision/Model/model_gpu/MODELGPU

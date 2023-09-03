@@ -14,7 +14,7 @@ import atexit
 app = Flask(__name__)
 load_dotenv('amb_var.env')
 
-CNN_Model = load_model('iVision/Model/Model')
+CNN_Model = load_model('iVision\Model\Model')
 base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
 
 class Camera:
@@ -154,3 +154,5 @@ atexit.register(close_camera)
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
