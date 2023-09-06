@@ -19,7 +19,7 @@ base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224,
 
 class Camera:
     def __init__(self):
-        self.camera = cv2.VideoCapture(0)
+        self.camera = cv2.VideoCapture(1)
         self.frame = None
         self.accident_flag = False
         self.max_prob = 0
@@ -36,7 +36,7 @@ class Camera:
                 with self.lock:
                     self.frame = frame
                     self.max_prob = max_prob
-                    self.accident_flag = max_prob > 0.5
+                    self.accident_flag = max_prob > 0.30
 
 camera = Camera()
 
@@ -84,7 +84,7 @@ def detect_accident(video_path, CNN_Model):
             current_frame += 1
             if current_frame % frame_skip != 0:
                 continue
-            if ret == True:
+            if ret:
                 frame_ready = prepared_frame(frame)
                 prediction = CNN_Model.predict(frame_ready)
                 frame_window.append(prediction[0][0])
@@ -94,7 +94,7 @@ def detect_accident(video_path, CNN_Model):
                 max_prediction = max(max_prediction, prediction[0][0])
                 avg_prediction = np.mean(frame_window)
 
-                if avg_prediction > 0.01:  # Ajustado para 50% de probabilidade
+                if avg_prediction > 0.01:  # limiar de decisão
                     accident_flag = True
 
                 if accident_flag:
@@ -153,6 +153,4 @@ def close_camera():
 atexit.register(close_camera)
 
 if __name__ == '__main__':
-    app.run(debug=True)
-
-
+    app.run(debug=False)
