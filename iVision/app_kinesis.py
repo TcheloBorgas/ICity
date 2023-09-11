@@ -2,43 +2,21 @@ import os
 import cv2
 import numpy as np
 import tensorflow.keras.backend as K
-import time
 from flask import Flask, request, jsonify, send_from_directory, Response
 from tensorflow.keras.models import load_model
 from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
+import boto3
+import time
 from dotenv import load_dotenv
-import threading
-import atexit
+
 
 app = Flask(__name__)
 load_dotenv('amb_var.env')
 
-CNN_Model = load_model('iVision\Model\Model')
+
+CNN_Model = load_model('iVision/Model/Model')
 base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
-
-class Camera:
-    def __init__(self):
-        self.camera = cv2.VideoCapture(1)
-        self.frame = None
-        self.accident_flag = False
-        self.max_prob = 0
-        self.lock = threading.Lock()
-
-    def run(self):
-        while True:
-            success, frame = self.camera.read()
-            if not success:
-                break
-            else:
-                prediction = predict_accident(frame)
-                max_prob = prediction[0][0]
-                with self.lock:
-                    self.frame = frame
-                    self.max_prob = max_prob
-                    self.accident_flag = max_prob > 0.3       # limiar de decisão
-
-camera = Camera()
 
 def prepared_frame(frame):
     frame = cv2.resize(frame, (224, 224))
@@ -52,15 +30,27 @@ def predict_accident(frame):
     prediction = CNN_Model.predict(frame_ready)
     return prediction
 
-def gen_frames(camera):  
-    while True:
-        with camera.lock:
-            frame = camera.frame
-            max_prob = camera.max_prob
-            accident_flag = camera.accident_flag
+def kinesis_video_feed():
+    client = boto3.client('kinesisvideo', region_name='us-west-2')  # Use sua região
+    response = client.get_data_endpoint(
+        StreamARN='YOUR_STREAM_ARN',  # Use o ARN do seu stream
+        APIName='GET_MEDIA'
+    )
 
-        if frame is None:
-            continue
+    endpoint = response['DataEndpoint']
+    client = boto3.client('kinesis-video-media', endpoint_url=endpoint, region_name='us-west-2')  # Use sua região
+    response = client.get_media(
+        StreamARN='YOUR_STREAM_ARN',  # Use o ARN do seu stream
+        StartSelector={
+            'StartSelectorType': 'NOW'
+        }
+    )
+
+    for chunk in response['Payload'].iter_chunks():
+        frame = np.frombuffer(chunk, np.uint8)
+        prediction = predict_accident(frame)
+        max_prob = prediction[0][0]
+        accident_flag = max_prob > 0.02
 
         text = f'Probabilidade de Acidente: {max_prob*100:.2f}%'
         color = (0, 0, 255) if accident_flag else (0, 255, 0)
@@ -69,6 +59,7 @@ def gen_frames(camera):
         frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
 
 def detect_accident(video_path, CNN_Model):
     cap = cv2.VideoCapture(video_path)
@@ -124,9 +115,7 @@ def detect_accident(video_path, CNN_Model):
 
 @app.route('/video_feed')
 def video_feed():
-    camera_thread = threading.Thread(target=camera.run)
-    camera_thread.start()
-    return Response(gen_frames(camera), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(kinesis_video_feed(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
@@ -139,18 +128,9 @@ def upload():
     else:
         return jsonify({'status': 'safe', 'message': f"Sem acidentes detectados. Probabilidade de segurança: {100 * (1 - max_prob):.2f}%", 'pred': 1 - float(max_prob)})
 
-@app.route('/hello', methods=['GET'])
-def HelloWorld():
-    return 'Hello World'
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def home():
     return send_from_directory('template', 'MVP.html')
 
-def close_camera():
-    camera.camera.release()
-
-atexit.register(close_camera)
-
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)

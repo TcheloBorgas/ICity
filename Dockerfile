@@ -1,17 +1,18 @@
-# Use an official Python runtime as a parent image
-FROM python:3.8-slim-buster
+# Use uma imagem base oficial do Python
+FROM python:3.8-slim
 
-# Set the working directory in the container to /app
+# Defina o diretório de trabalho no contêiner
 WORKDIR /app
 
-# Add the current directory contents into the container at /app
-ADD . /app
+# Copie os arquivos do projeto para o contêiner
+COPY . .
 
-# Install any needed packages specified in requirements.txt
+# Instale as bibliotecas necessárias
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Make port 80 available to the world outside this container
-EXPOSE 80
+# Expõe a porta que o Flask vai rodar
+EXPOSE 5000
 
-# Run app.py when the container launches
+# Comando para iniciar o servidor Flask quando o contêiner é iniciado
 CMD ["python", "app.py"]

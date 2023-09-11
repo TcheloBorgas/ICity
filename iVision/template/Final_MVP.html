@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html lang="pt-br">
+<head>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ICity</title>
+<style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background-image: linear-gradient(90deg, #51E8F4, #7300ff, #51E8F4, #7300ff);
+      color: #fff;
+    }
+    h1 {
+      color: #2b134b;
+      text-align: center;
+      margin-top: 70px;
+    }
+    form {
+      width: 60%;
+      margin: 50px auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 50px;
+      background-color: rgba(43, 19, 75, 0.6); /* fundo mais transparente */
+      border-radius: 45px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px); /* efeito de desfoque máximo */
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    input[type="file"] {
+      margin-bottom: 20px;
+    }
+    button[type="submit"], button.open-map, a.open-map {
+      background-color: #7300ff;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 10px;
+    }
+    button[type="submit"]:hover, button.open-map:hover, a.open-map:hover {
+      background-color: #fff;
+      color: #2b134b;
+      transition: all 0.3s ease;
+    }
+    #confirmation-message {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 1.2rem;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    .popup {
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.4);
+      display: none;
+    }
+    .popup-content {
+      position: relative;
+      margin: 5% auto;
+      padding: 20px;
+      background-color: white;
+      width: 80%;
+      max-width: 800px;
+      height: 80%;
+    }
+  
+    body, h1, label {
+      font-family: 'Times New Roman', serif;
+      font-size: 1.2em;
+    }
+  
+    button[type="submit"], button.open-map, a.open-map {
+      font-size: 1.2em;
+      padding: 12px 20px;
+    }
+  
+    button[type="submit"], button.open-map, a.open-map {
+      margin: 10px;
+    }
+  
+    body, h1, label {
+      font-family: 'Calibri', sans-serif;
+    }
+  
+    @keyframes rainbowNeon {
+      0%   { box-shadow: 0 0 5px #FF0000, 0 0 10px #FF0000; }
+      20%  { box-shadow: 0 0 5px #FF7F00, 0 0 10px #FF7F00; }
+      40%  { box-shadow: 0 0 5px #FFFF00, 0 0 10px #FFFF00; }
+      60%  { box-shadow: 0 0 5px #7FFF00, 0 0 10px #7FFF00; }
+      80%  { box-shadow: 0 0 5px #00FF00, 0 0 10px #00FF00; }
+      100% { box-shadow: 0 0 5px #0000FF, 0 0 10px #0000FF; }
+    }
+  
+    button[type="submit"], button.open-map, a.open-map {
+      animation: rainbowNeon 2s infinite alternate;
+      border: 2px solid transparent;
+    }
+  
+    button[type="submit"]:hover, button.open-map:hover, a.open-map:hover {
+      box-shadow: 0 0 5px #FF69B4, 2px 0 10px #FF69B4;
+      border-color: #FF69B4;
+    }
+  
+    h1 {
+      font-size: 2.5em;
+      color: black;
+    }
+  
+  </style>
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script>
+  async function openVideoFeed() {
+      videoFeedWindow = window.open('http://127.0.0.1:5000/video_feed', '_blank');
+      const res = await fetch('http://127.0.0.1:5000/video_feed');
+      const reader = res.body.getReader();
+      while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+              break;
+          }
+          const text = new TextDecoder().decode(value);
+          if (text.includes('Accident detected!')) {
+              alert('Accident detected!');
+              videoFeedWindow.close();
+              window.location.reload();
+              break;
+          }
+      }
+  }
+  </script>
+<!-- <img id="live-video" src="" alt="Live Video Feed"> -->
+</head>
+<body>
+<h1>Detecção de Acidentes ICity</h1>
+<form id="video-form">
+<label for="video">Selecione um vídeo:</label>
+<input accept="video/*" id="video" name="video" required="" type="file"/>
+<div style="display: flex; justify-content: center; align-items: center;"><button type="submit">Enviar</button>
+<button class="open-map" onclick="openPopup()">Abrir mapa</button>
+<a class="open-map" href="#" onclick="openVideoFeed()">Detecção em Tempo Real</a></div>
+<p id="confirmation-message"></p>
+</form><video controls="True" id="accidentVideo" style="display: block; margin: 20px auto; width: 80%;"><source src="/tmp/accident_clip.avi" type="video/avi"/></video>
+<div class="popup" id="popup">
+<div class="popup-content">
+<button onclick="closePopup()" style="float: right;">X</button>
+<div id="map"></div>
+</div>
+</div>
+<script>
+    const form = document.querySelector('#video-form');
+    const confirmationMessage = document.querySelector('#confirmation-message');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.status === 'success' && data.pred) {
+          confirmationMessage.innerText = `Vídeo enviado com sucesso. Probabilidade de colisão: ${(data.pred * 100).toFixed(2)}%`;
+        } else if (data && data.status === 'success') {
+          confirmationMessage.innerText = 'Vídeo enviado com sucesso. Não foi possível obter a probabilidade de colisão.';
+        } else if (data) {
+          confirmationMessage.innerText = data.message;
+        } else {
+          confirmationMessage.innerText = 'Ocorreu um erro ao enviar o vídeo.';
+        }
+      })
+      .catch(error => {
+        console.error(error);
+      });
+    });
+    let mapInitialized = false;
+    let map;
+    let videoFeedWindow = null;
+    function initMap() {
+      if (!mapInitialized) {
+        const mapOptions = {
+          center: { lat: -23.550520, lng: -46.633308 },
+          zoom: 8,
+          mapTypeId: "satellite",
+          tilt: 45,
+        };
+        map = new google.maps.Map(document.getElementById("map"), mapOptions);
+        mapInitialized = true;
+      }
+    }
+    function openPopup() {
+      document.getElementById("popup").style.display = "block";
+      setTimeout(() => {
+        if (!mapInitialized) {
+          initMap();
+        }
+        google.maps.event.trigger(map, "resize");
+        map.setCenter({ lat: -23.550520, lng: -46.633308 });
+      }, 100);
+    }
+    function closePopup() {
+      document.getElementById("popup").style.display = "none";
+    }
+    var source = new EventSource("/video_feed");
+  source.onmessage = function(event) {
+      if (event.data === "Accidente detectado!") {
+          alert("Accidente detectado!");
+          source.close();
+          window.location.href = "/";
+      } else {
+          document.getElementById("live-video").src = "data:image/jpeg;base64," + event.data;
+      }
+  };
+  
+  </script>
+<script async="" defer="" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnDwZkREPcjwi2ewzfROwRpetAzW6trrM">
+</script>
+<script>
+    function checkAccidentStatus() {
+        fetch('/accident_status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.accident_detected) {
+                    // Redirecionar para a tela inicial e mostrar o frame do acidente
+                    window.location.href = '/';
+                    // TODO: mostrar o frame do acidente e a probabilidade
+                }
+            });
+    }
+
+    // Verificar o estado do acidente a cada 5 segundos
+    setInterval(checkAccidentStatus, 5000);
+</script>
+<script>
+    setInterval(async function() {
+        const response = await fetch("/accident_status");
+        const data = await response.json();
+        if (data.accident_detected) {
+            document.getElementById("accidentVideo").src = "/tmp/accident_clip.avi";
+            document.getElementById("accidentVideo").load();
+        }
+    }, 5000);  // Check every 5 seconds
+</script></body>
+</html>
