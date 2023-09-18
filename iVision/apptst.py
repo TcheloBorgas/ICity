@@ -160,6 +160,10 @@ def gen_frames(camera):
 
 
 def save_buffer_as_video(buffer, filename):
+    # Removendo frames que são None
+    buffer = [frame for frame in buffer if frame is not None]
+
+    # Se o buffer estiver vazio após a remoção, retorna
     if not buffer:
         return
 
@@ -173,6 +177,7 @@ def save_buffer_as_video(buffer, filename):
 
 
 
+
 @app.route('/hello', methods=['GET'])
 def HelloWorld():
     return 'Hello World'
@@ -180,7 +185,6 @@ def HelloWorld():
 @app.route('/', methods=['GET', 'POST'])
 def home():
     return send_from_directory('template', 'Final_MVP.html')
-
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
@@ -209,8 +213,7 @@ def accident_status():
 
 @app.route('/accident_clip')
 def accident_clip():
-    return send_from_directory('tmp', "accident_clip.avi", as_attachment=False)
-
+    return send_from_directory('/tmp', 'accident_clip.avi', as_attachment=True)
 
 
 
