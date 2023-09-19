@@ -7,8 +7,10 @@ from flask import Flask, request, jsonify, send_from_directory, Response
 from tensorflow.keras.models import load_model
 from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
+from moviepy.editor import ImageSequenceClip
 from dotenv import load_dotenv
 import threading
+import datetime
 import atexit
 
 app = Flask(__name__)
@@ -20,7 +22,11 @@ BUFFER_SIZE = 10 * FPS  # 10 segundos de vídeo
 
 CNN_Model = load_model('iVision\Model\Model')
 base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
-temp_folder ='iVision\temp'
+
+if not os.path.exists("iVision\\temp"):
+    os.makedirs("iVision\\temp")
+
+temp_folder = 'iVision\\temp'
 
 
 class Camera:
@@ -159,21 +165,21 @@ def gen_frames(camera):
 
 
 
-def save_buffer_as_video(buffer, filename):
-    # Removendo frames que são None
-    buffer = [frame for frame in buffer if frame is not None]
-
-    # Se o buffer estiver vazio após a remoção, retorna
+def save_buffer_as_video(buffer, folder):
     if not buffer:
         return
+    
+    # Criando um nome de arquivo com timestamp
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = os.path.join(folder, f'accident_clip_{timestamp}.avi')
 
-    height, width, _ = buffer[0].shape
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(filename, fourcc, FPS, (width, height))
+    # Se todos os quadros forem válidos, continue com a criação do clipe
+    fps = FPS
+    clip = ImageSequenceClip([cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) for frame in buffer], fps=fps)
+    clip.write_videofile(filename, codec='libx264')
+    
+    return filename  # Retorna o caminho do arquivo para uso posterior, se necessário
 
-    for frame in buffer:
-        out.write(frame)
-    out.release()
 
 
 
@@ -185,6 +191,7 @@ def HelloWorld():
 @app.route('/', methods=['GET', 'POST'])
 def home():
     return send_from_directory('template', 'Final_MVP.html')
+
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
@@ -213,8 +220,7 @@ def accident_status():
 
 @app.route('/accident_clip')
 def accident_clip():
-    return send_from_directory('/tmp', 'accident_clip.avi', as_attachment=True)
-
+    return send_from_directory('tmp', "accident_clip.avi", as_attachment=False)
 
 
 if __name__ == '__main__':

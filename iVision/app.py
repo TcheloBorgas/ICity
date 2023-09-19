@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, send_from_directory, Response
 from tensorflow.keras.models import load_model
 from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
+from moviepy.editor import ImageSequenceClip
 from dotenv import load_dotenv
 import threading
 import atexit
@@ -20,7 +21,11 @@ BUFFER_SIZE = 10 * FPS  # 10 segundos de vídeo
 
 CNN_Model = load_model('iVision\Model\Model')
 base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
-temp_folder ='iVision\temp'
+
+if not os.path.exists("iVision\\temp"):
+    os.makedirs("iVision\\temp")
+
+temp_folder = 'iVision\\temp'
 
 
 class Camera:
@@ -158,18 +163,20 @@ def gen_frames(camera):
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
-
 def save_buffer_as_video(buffer, filename):
     if not buffer:
         return
 
-    height, width, _ = buffer[0].shape
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(filename, fourcc, FPS, (width, height))
+    # Verificar se todos os quadros são válidos
+    if any(frame is None for frame in buffer):
+        print("Erro: buffer de vídeo contém quadros inválidos.")
+        return
 
-    for frame in buffer:
-        out.write(frame)
-    out.release()
+    # Se todos os quadros forem válidos, continue com a criação do clipe
+    fps = FPS
+    clip = ImageSequenceClip([cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) for frame in buffer], fps=fps)
+    clip.write_videofile(filename, codec='libx264')
+
 
 
 
@@ -210,7 +217,6 @@ def accident_status():
 @app.route('/accident_clip')
 def accident_clip():
     return send_from_directory('tmp', "accident_clip.avi", as_attachment=False)
-
 
 
 
