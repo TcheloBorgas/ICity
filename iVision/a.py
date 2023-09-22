@@ -70,6 +70,9 @@ class Camera:
         self.lock = threading.Lock()
 
 
+
+
+
     def run(self):
         while True:
             success, frame = self.camera.read()
@@ -88,8 +91,9 @@ class Camera:
                 clip_path = os.path.join(temp_folder, clip_name)
                 save_buffer_as_video(video_buffer, clip_path)
 
+
+
 camera = Camera()
-threading.Thread(target=camera.run, daemon=True).start()
 
 #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━❮◆❯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -263,51 +267,9 @@ def upload():
     
 @app.route('/video_feed')
 def video_feed():
-    def generate(camera):
-        global video_buffer
-        clip_saved = False  # Indicador para evitar salvar clipes repetidos do mesmo evento
-        accident_detected_time = None
-
-        while True:
-            with camera.lock:
-                frame = camera.frame
-                # Adicionando o frame ao buffer
-                video_buffer.append(frame)
-                if len(video_buffer) > 10 * FPS:  # Mantendo o buffer com 10 segundos de quadros
-                    video_buffer.pop(0)
-
-                max_prob = camera.max_prob
-                accident_flag = camera.accident_flag
-
-            if frame is None:
-                continue
-
-            text = f'Probabilidade de Acidente: {max_prob*100:.2f}%'
-            color = (0, 0, 255) if accident_flag else (0, 255, 0)
-            cv2.putText(frame, text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-            
-            # Salvar um clipe se um acidente for detectado
-            if accident_flag:
-                if not accident_detected_time:
-                    accident_detected_time = time.time()
-                elif time.time() - accident_detected_time > 5:  # 5 segundos após a detecção
-                    clip_name = "accident_clip.avi"
-                    clip_path = os.path.join(temp_folder, clip_name)
-                    save_buffer_as_video(video_buffer, clip_path)
-                    clip_saved = True
-                    accident_detected_time = None
-            else:
-                clip_saved = False
-                accident_detected_time = None
-
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        pass
-
-    return Response(generate(camera), mimetype="multipart/x-mixed-replace")
-
+    camera_thread = threading.Thread(target=camera.run)
+    camera_thread.start()
+    return Response(gen_frames(camera), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @app.route('/accident_status')

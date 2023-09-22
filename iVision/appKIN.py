@@ -3,25 +3,35 @@ import cv2
 import numpy as np
 import tensorflow.keras.backend as K
 import time
+import threading
+import atexit
+import boto3
 from flask import Flask, request, jsonify, send_from_directory, Response
 from tensorflow.keras.models import load_model
 from tempfile import NamedTemporaryFile
 from tensorflow.keras.applications.vgg16 import preprocess_input, VGG16
 from moviepy.editor import ImageSequenceClip
 from dotenv import load_dotenv
-import threading
-import datetime
-import atexit
+
 
 app = Flask(__name__)
 load_dotenv('amb_var.env')
 video_buffer = []
 FPS = 30  # Assumindo que a câmera tenha 30 FPS, ajustar se necessário
-BUFFER_SIZE = 10 * FPS  # 10 segundos de vídeo
+BUFFER_SIZE = 15 * FPS  # 10 segundos de vídeo
 
 
 CNN_Model = load_model('iVision\Model\Model')
 base_model = VGG16(include_top=False, weights='imagenet', input_shape=(224, 224, 3))
+
+
+
+kinesis_client = boto3.client('kinesis', region_name='YOUR_REGION', 
+                              aws_access_key_id='YOUR_ACCESS_KEY',
+                              aws_secret_access_key='YOUR_SECRET_KEY')
+stream_name = 'YOUR_STREAM_NAME'
+
+
 
 if not os.path.exists("iVision\\temp"):
     os.makedirs("iVision\\temp")
@@ -37,9 +47,6 @@ class Camera:
         self.accident_flag = False
         self.max_prob = 0
         self.lock = threading.Lock()
-
-
-
 
 
     def run(self):
@@ -60,9 +67,34 @@ class Camera:
                 clip_path = os.path.join(temp_folder, clip_name)
                 save_buffer_as_video(video_buffer, clip_path)
 
-
-
 camera = Camera()
+
+def fetch_frame_from_kinesis():
+    response = kinesis_client.get_records(
+        ShardIterator='YOUR_SHARD_ITERATOR',
+        Limit=1
+    )
+    
+    # Aqui, assumimos que o frame é o único registro no lote e está codificado em base64.
+    # Se sua configuração for diferente, ajuste conforme necessário.
+    frame_data = response['Records'][0]['Data']
+    frame = np.frombuffer(frame_data, dtype=np.uint8)
+    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+    
+    return frame
+
+sns_client = boto3.client('sns', region_name='YOUR_REGION',
+                          aws_access_key_id='YOUR_ACCESS_KEY',
+                          aws_secret_access_key='YOUR_SECRET_KEY')
+topic_arn = 'YOUR_SNS_TOPIC_ARN'
+
+def send_accident_notification():
+    message = "Um acidente foi detectado!"
+    response = sns_client.publish(
+        TopicArn=topic_arn,
+        Message=message,
+    )
+
 
 def prepared_frame(frame):
     frame = cv2.resize(frame, (224, 224))
@@ -101,11 +133,12 @@ def detect_accident(video_path, CNN_Model):
                 max_prediction = max(max_prediction, prediction[0][0])
                 avg_prediction = np.mean(frame_window)
 
-                if avg_prediction > 0.01:  # limiar de decisão
+                if avg_prediction > 0.3:  # limiar de decisão
                     accident_flag = True
 
                 if accident_flag:
                     predict = f"Probabilidade de acidente: {100 * avg_prediction:.2f}%"
+                    send_accident_notification()
                 else:
                     predict = "Sem acidente"
 
@@ -164,22 +197,19 @@ def gen_frames(camera):
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
-
-def save_buffer_as_video(buffer, folder):
+def save_buffer_as_video(buffer, filename):
     if not buffer:
         return
-    
-    # Criando um nome de arquivo com timestamp
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = os.path.join(folder, f'accident_clip_{timestamp}.avi')
+
+    # Verificar se todos os quadros são válidos
+    if any(frame is None for frame in buffer):
+        print("Erro: buffer de vídeo contém quadros inválidos.")
+        return
 
     # Se todos os quadros forem válidos, continue com a criação do clipe
     fps = FPS
     clip = ImageSequenceClip([cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) for frame in buffer], fps=fps)
     clip.write_videofile(filename, codec='libx264')
-    
-    return filename  # Retorna o caminho do arquivo para uso posterior, se necessário
-
 
 
 
@@ -200,16 +230,60 @@ def upload():
     video.save(temp_video_file.name)
     max_prob, accident_flag = detect_accident(video_path=temp_video_file.name, CNN_Model=CNN_Model)
     if accident_flag:
+        send_accident_notification()
         return jsonify({'status': 'danger', 'message': f"Acidente detectado com probabilidade de {100 * max_prob:.2f}%!", 'pred': float(max_prob)})
+
     else:
         return jsonify({'status': 'safe', 'message': f"Sem acidentes detectados. Probabilidade de segurança: {100 * (1 - max_prob):.2f}%", 'pred': 1 - float(max_prob)})
 
 
 @app.route('/video_feed')
 def video_feed():
-    camera_thread = threading.Thread(target=camera.run)
-    camera_thread.start()
-    return Response(gen_frames(camera), mimetype='multipart/x-mixed-replace; boundary=frame')
+    def generate(camera):
+        global video_buffer
+        clip_saved = False  # Indicador para evitar salvar clipes repetidos do mesmo evento
+        accident_detected_time = None
+
+        while True:
+            with camera.lock:
+                frame = camera.frame
+                # Adicionando o frame ao buffer
+                video_buffer.append(frame)
+                if len(video_buffer) > 10 * FPS:  # Mantendo o buffer com 10 segundos de quadros
+                    video_buffer.pop(0)
+
+                max_prob = camera.max_prob
+                accident_flag = camera.accident_flag
+
+            if frame is None:
+                continue
+
+            text = f'Probabilidade de Acidente: {max_prob*100:.2f}%'
+            color = (0, 0, 255) if accident_flag else (0, 255, 0)
+            cv2.putText(frame, text, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+            
+            # Salvar um clipe se um acidente for detectado
+            if accident_flag:
+                if not accident_detected_time:
+                    accident_detected_time = time.time()
+                elif time.time() - accident_detected_time > 5:  # 5 segundos após a detecção
+                    clip_name = "accident_clip.avi"
+                    clip_path = os.path.join(temp_folder, clip_name)
+                    save_buffer_as_video(video_buffer, clip_path)
+                    clip_saved = True
+                    accident_detected_time = None
+            else:
+                clip_saved = False
+                accident_detected_time = None
+
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        pass
+
+    return Response(generate(Camera()), mimetype="multipart/x-mixed-replace")
+
 
 
 @app.route('/accident_status')
@@ -221,6 +295,7 @@ def accident_status():
 @app.route('/accident_clip')
 def accident_clip():
     return send_from_directory('tmp', "accident_clip.avi", as_attachment=False)
+
 
 
 if __name__ == '__main__':
